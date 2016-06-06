@@ -25,8 +25,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Random;
 
+import org.apache.jackrabbit.oak.commons.FileIOUtils;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.apache.jackrabbit.oak.commons.FileIOUtils.copy;
 
 /**
  * Tests for GarbageCollectorFileState
@@ -35,7 +38,7 @@ public class GarbageCollectorFileStateTest {
 
     @Test
     public void testCopy() throws IOException{
-        File f = GarbageCollectorFileState.copy(randomStream(0, 256));
+        File f = copy(randomStream(0, 256));
         Assert.assertTrue("File does not exist", f.exists());
         Assert.assertEquals("File length not equal to byte array from which copied",
             256, f.length());

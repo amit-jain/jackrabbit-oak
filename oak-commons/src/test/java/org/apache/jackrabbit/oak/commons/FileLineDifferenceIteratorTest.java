@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.jackrabbit.oak.plugins.blob;
+package org.apache.jackrabbit.oak.commons;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -33,10 +33,10 @@ import com.google.common.base.Splitter;
 import com.google.common.base.StandardSystemProperty;
 import com.google.common.collect.ImmutableList;
 import org.apache.commons.io.LineIterator;
+import org.apache.jackrabbit.oak.commons.FileIOUtils.FileLineDifferenceIterator;
 import org.junit.Test;
 
 import static java.util.Arrays.asList;
-import static org.apache.jackrabbit.oak.plugins.blob.MarkSweepGarbageCollector.FileLineDifferenceIterator;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 

@@ -276,7 +276,7 @@ public class MongoBlobGCTest extends AbstractMongoConnectionTest {
         assertTrue(Sets.difference(state.blobsPresent, existingAfterGC).isEmpty());
         assertEquals(gc.additionalBlobs, Sets.symmetricDifference(state.blobsPresent, existingAfterGC));
     }
-    
+
     private Set<String> gc(int blobGcMaxAgeInSecs) throws Exception {
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
         MarkSweepGarbageCollector gc = init(blobGcMaxAgeInSecs, executor);

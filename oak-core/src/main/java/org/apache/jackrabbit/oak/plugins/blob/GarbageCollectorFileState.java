@@ -31,6 +31,8 @@ import org.apache.commons.io.FileUtils;
 import org.apache.jackrabbit.oak.commons.IOUtils;
 import org.apache.jackrabbit.oak.commons.sort.ExternalSort;
 
+import static java.io.File.createTempFile;
+
 /**
  * Class for keeping the file system state of the garbage collection.
  * 
@@ -52,13 +54,6 @@ public class GarbageCollectorFileState implements Closeable{
 
     /** The garbage stores the garbage collection candidates which were not deleted . */
     private final File garbage;
-    private final static Comparator<String> lexComparator = 
-            new Comparator<String>() {
-                @Override
-                public int compare(String s1, String s2) {
-                    return s1.compareTo(s2);
-                }
-            };
 
     /**
      * Instantiates a new garbage collector file state.
@@ -112,6 +107,10 @@ public class GarbageCollectorFileState implements Closeable{
         return garbage;
     }
 
+    public File createTemp() throws IOException {
+        return createTempFile("temp", null, home);
+    }
+
     /**
      * Completes the process by deleting the files.
      * 
@@ -123,52 +122,5 @@ public class GarbageCollectorFileState implements Closeable{
                 FileUtils.sizeOf(getGarbage()) == 0) {
             FileUtils.deleteDirectory(home);
         }
-    }
-
-    /**
-     * Sorts the given file externally.
-     * 
-     * @param file file whose contents needs to be sorted
-     */
-    public static void sort(File file) throws IOException {
-        File sorted = createTempFile();
-        merge(ExternalSort.sortInBatch(file, lexComparator, true), sorted);
-        Files.move(sorted, file);
-    }
-
-    /**
-     * Sorts the given file externally with the given comparator.
-     *
-     * @param file file whose contents needs to be sorted
-     * @param comparator to compare
-     * @throws IOException
-     */
-    public static void sort(File file, Comparator<String> comparator) throws IOException {
-        File sorted = createTempFile();
-        merge(ExternalSort.sortInBatch(file, comparator, true), sorted);
-        Files.move(sorted, file);
-    }
-    
-    
-    public static void merge(List<File> files, File output) throws IOException {
-        ExternalSort.mergeSortedFiles(
-                files,
-                output, lexComparator, true);        
-    }
-    
-    public static File copy(InputStream stream) throws IOException {
-        File file = createTempFile();
-        OutputStream out = null;
-        try {
-            out = new FileOutputStream(file);
-            IOUtils.copy(stream, out);
-        } finally {
-            IOUtils.closeQuietly(out);
-        }
-        return file;
-    }
-
-    private static File createTempFile() throws IOException {
-        return File.createTempFile("temp", null);
     }
 }
