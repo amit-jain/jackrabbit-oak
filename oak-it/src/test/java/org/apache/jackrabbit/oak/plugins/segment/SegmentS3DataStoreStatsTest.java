@@ -16,27 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.jackrabbit.oak.plugins.document;
+package org.apache.jackrabbit.oak.plugins.segment;
 
+import java.io.File;
 import java.util.Map;
 
+import org.apache.jackrabbit.oak.blob.cloud.aws.s3.S3DataStoreStats;
+import org.apache.jackrabbit.oak.blob.cloud.aws.s3.SharedS3DataStore;
 import org.apache.jackrabbit.oak.blob.cloud.aws.s3.stats.S3DataStoreStatsMBean;
-import org.apache.jackrabbit.oak.plugins.blob.datastore.S3DataStoreStats;
-import org.apache.jackrabbit.oak.plugins.blob.datastore.SharedS3DataStore;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.apache.jackrabbit.oak.stats.StatisticsProvider;
 import org.apache.sling.testing.mock.osgi.ReferenceViolationException;
 import org.apache.sling.testing.mock.osgi.junit.OsgiContext;
-import org.junit.Assume;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.rules.TemporaryFolder;
 import org.osgi.framework.ServiceRegistration;
 
 import static com.google.common.collect.Maps.newHashMap;
+import static org.apache.jackrabbit.oak.plugins.segment.SegmentNodeStoreService.CUSTOM_BLOB_STORE;
+import static org.apache.jackrabbit.oak.segment.SegmentNodeStoreService.DIRECTORY;
 import static org.apache.sling.testing.mock.osgi.MockOsgi.deactivate;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -45,18 +47,16 @@ import static org.mockito.Mockito.mock;
 /**
  * Tests the registration of the S3DataStoreStatsMbean.
  */
-public class DocumentS3DataStoreStatsTest {
+public class SegmentS3DataStoreStatsTest {
 
     @Rule
     public OsgiContext context = new OsgiContext();
 
     @Rule
-    public ExpectedException expectedEx = ExpectedException.none();
+    public TemporaryFolder folder = new TemporaryFolder(new File("target"));
 
-    @BeforeClass
-    public static void checkMongoDbAvailable() {
-        Assume.assumeTrue(MongoUtils.isAvailable());
-    }
+    @Rule
+    public ExpectedException expectedEx = ExpectedException.none();
 
     @Before
     public void setUp() {
@@ -71,7 +71,7 @@ public class DocumentS3DataStoreStatsTest {
         assertNotNull(context.getService(SharedS3DataStore.class));
         registerBlobStore();
 
-        registerDocumentNodeStoreService(true);
+        registerSegmentNodeStoreService(true);
         assertServiceActivated();
 
         S3DataStoreStats s3DataStoreStats =
@@ -79,7 +79,7 @@ public class DocumentS3DataStoreStatsTest {
         assertNotNull(context.getService(S3DataStoreStatsMBean.class));
 
         deactivate(s3DataStoreStats);
-        unregisterDocumentNodeStoreService();
+        unregisterSegmentNodeStoreService();
         unregisterBlobStore();
         delegateReg.unregister();
     }
@@ -90,38 +90,37 @@ public class DocumentS3DataStoreStatsTest {
 
         registerBlobStore();
 
-        registerDocumentNodeStoreService(true);
+        registerSegmentNodeStoreService(true);
         assertServiceActivated();
 
         S3DataStoreStats s3DataStoreStats =
             context.registerInjectActivateService(new S3DataStoreStats(), null);
         assertNull(context.getService(S3DataStoreStatsMBean.class));
 
-        unregisterDocumentNodeStoreService();
+        unregisterSegmentNodeStoreService();
         unregisterBlobStore();
     }
 
-    private DocumentNodeStoreService documentNodeStoreService;
+    private SegmentNodeStoreService
+        segmentNodeStoreService;
 
-    private void registerDocumentNodeStoreService(boolean customBlobStore) {
+    private void registerSegmentNodeStoreService(boolean customBlobStore) {
         Map<String, Object> properties = newHashMap();
 
-        properties.put("mongouri", MongoUtils.URL);
-        properties.put("db", MongoUtils.DB);
-        properties.put(DocumentNodeStoreService.CUSTOM_BLOB_STORE, customBlobStore);
-        documentNodeStoreService =
-            context.registerInjectActivateService(new DocumentNodeStoreService(), properties);
+        properties.put(CUSTOM_BLOB_STORE, customBlobStore);
+        properties.put(DIRECTORY, folder.getRoot().getAbsolutePath());
+
+        segmentNodeStoreService = context.registerInjectActivateService(new SegmentNodeStoreService(), properties);
     }
 
-    private void unregisterDocumentNodeStoreService() {
-        deactivate(documentNodeStoreService);
+    private void unregisterSegmentNodeStoreService() {
+        deactivate(segmentNodeStoreService);
     }
 
     private ServiceRegistration blobStore;
 
     private void registerBlobStore() {
-        blobStore = context.bundleContext()
-            .registerService(BlobStore.class.getName(), mock(BlobStore.class), null);
+        blobStore = context.bundleContext().registerService(BlobStore.class.getName(), mock(BlobStore.class), null);
     }
 
     private void unregisterBlobStore() {
@@ -130,5 +129,6 @@ public class DocumentS3DataStoreStatsTest {
 
     private void assertServiceActivated() {
         assertNotNull(context.getService(NodeStore.class));
+        assertNotNull(context.getService(SegmentStoreProvider.class));
     }
 }

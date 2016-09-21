@@ -21,7 +21,6 @@ package org.apache.jackrabbit.oak.plugins.blob;
 import static com.google.common.collect.Sets.newHashSet;
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
-import static org.apache.jackrabbit.oak.plugins.blob.datastore.DataStoreUtils.cleanup;
 import static org.apache.jackrabbit.oak.plugins.blob.datastore.DataStoreUtils.getBlobStore;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -73,7 +72,7 @@ public class SharedDataStoreUtilsTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder(new File("target"));
 
-    DataStoreBlobStore dataStore;
+    protected DataStoreBlobStore dataStore;
 
     @BeforeClass
     public static void setUpBeforeClass() throws Exception {
@@ -282,11 +281,6 @@ public class SharedDataStoreUtilsTest {
     @After
     public void close() throws IOException {
         FileUtils.cleanDirectory(new File(DataStoreUtils.getHomeDir()));
-        try {
-            cleanup(dataStore.getDataStore(), new Date());
-        } catch (Exception e) {
-            log.error("Error closing data store", e);
-        }
     }
 }
 
