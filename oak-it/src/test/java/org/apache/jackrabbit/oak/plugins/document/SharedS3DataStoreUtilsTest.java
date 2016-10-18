@@ -72,7 +72,7 @@ public class SharedS3DataStoreUtilsTest extends SharedDataStoreUtilsTest {
     @After
     public void close() throws IOException {
         try {
-            deleteBucket(bucket, new Date());
+            deleteBucket(s3Class, bucket, new Date());
         } catch (Exception e) {
             log.error("Error closing data store", e);
         }

@@ -75,7 +75,7 @@ public class MongoS3DataStoreBlobGCTest extends MongoDataStoreBlobGCTest {
     @After
     @Override
     public void tearDownConnection() throws Exception {
-        S3DataStoreUtils.deleteBucket(bucket, startDate);
+        S3DataStoreUtils.deleteBucket(s3Class, bucket, startDate);
         super.tearDownConnection();
     }
 }

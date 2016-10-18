@@ -55,7 +55,7 @@ public class S3SharedBlobStoreGCTest extends SharedBlobStoreGCTest {
 
     @After
     public void tearDown() throws Exception {
-        S3DataStoreUtils.deleteBucket(bucket, cluster1.getDate());
+        S3DataStoreUtils.deleteBucket(s3Class, bucket, cluster1.getDate());
         super.tearDown();
     }
 

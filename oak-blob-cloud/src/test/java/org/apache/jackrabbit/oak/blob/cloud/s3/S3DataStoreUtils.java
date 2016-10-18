@@ -37,11 +37,16 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import org.apache.commons.io.IOUtils;
 import org.apache.jackrabbit.core.data.DataStore;
+import org.apache.jackrabbit.oak.blob.cloud.CloudDataStore;
+import org.apache.jackrabbit.oak.blob.cloud.CloudUtils;
 import org.apache.jackrabbit.oak.blob.cloud.aws.s3.SharedS3DataStore;
 import org.apache.jackrabbit.oak.commons.PropertiesUtil;
 import org.apache.jackrabbit.oak.plugins.blob.datastore.DataStoreUtils;
+import org.jclouds.blobstore.BlobStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.jackrabbit.oak.blob.cloud.CloudUtils.getProperties;
 
 /**
  * Extension to {@link DataStoreUtils} to enable S3 extensions for cleaning and initialization.
@@ -53,17 +58,20 @@ public class S3DataStoreUtils extends DataStoreUtils {
 
     private static Class JR2_S3 = SharedS3DataStore.class;
     private static Class S3 = S3DataStore.class;
+    private static Class CLOUD = CloudDataStore.class;
 
     public static List<String> getFixtures() {
         return ImmutableList.of(
-            S3.getName(),
-            JR2_S3.getName());
+            //S3.getName(),
+            //JR2_S3.getName(),
+            CLOUD.getName());
     }
 
     public static boolean isS3DataStore() {
         String dsName = System.getProperty(DS_CLASS_NAME);
         boolean s3Class =
-            (dsName != null) && (dsName.equals(S3.getName()) || dsName.equals(JR2_S3.getName()));
+            (dsName != null) && (dsName.equals(S3.getName()) || dsName.equals(JR2_S3.getName())
+                || dsName.equals(CLOUD.getName()));
         if (!isS3Configured()) {
             return false;
         }
@@ -126,6 +134,8 @@ public class S3DataStoreUtils extends DataStoreUtils {
             ((S3DataStore) ds).setProperties(props);
         } else if (JR2_S3.getName().equals(className)) {
             ((org.apache.jackrabbit.oak.blob.cloud.aws.s3.SharedS3DataStore) ds).setProperties(props);
+        } else if (CLOUD.getName().equals(className)) {
+            ((CloudDataStore) ds).setProperties(props);
         }
         ds.init(homeDir);
 
@@ -134,6 +144,22 @@ public class S3DataStoreUtils extends DataStoreUtils {
 
     public static DataStore getS3DataStore(String className, String homeDir) throws Exception {
         return getS3DataStore(className, getS3Config(), homeDir);
+    }
+
+
+    public static void deleteBucket(String className, String bucket, Date date) throws Exception {
+        if (!Strings.isNullOrEmpty(className) && !Strings.isNullOrEmpty(bucket)) {
+            if (className.equals(CLOUD.getName())) {
+                log.info("cleaning bucket [" + bucket + "]");
+                BlobStore blobStore = CloudUtils.getBlobStore(getProperties(getS3Config()));
+                if (blobStore.containerExists(bucket)) {
+                    blobStore.deleteContainer(bucket);
+                    log.info("bucket [ " + bucket + "] cleaned");
+                }
+            } else {
+                deleteBucket(bucket, date);
+            }
+        }
     }
 
     public static void deleteBucket(String bucket, Date date) throws Exception {
