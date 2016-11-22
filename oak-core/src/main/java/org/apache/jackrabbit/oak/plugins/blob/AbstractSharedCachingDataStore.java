@@ -46,6 +46,7 @@ import org.apache.jackrabbit.core.data.DataIdentifier;
 import org.apache.jackrabbit.core.data.DataRecord;
 import org.apache.jackrabbit.core.data.DataStoreException;
 import org.apache.jackrabbit.core.data.MultiDataStoreAware;
+import org.apache.jackrabbit.oak.plugins.blob.datastore.TypedDataStore;
 import org.apache.jackrabbit.oak.spi.blob.AbstractDataRecord;
 import org.apache.jackrabbit.oak.spi.blob.AbstractSharedBackend;
 import org.apache.jackrabbit.oak.stats.StatisticsProvider;
@@ -54,6 +55,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.jackrabbit.oak.plugins.blob.BlobOptions.UploadType.SYNCHRONOUS;
 
 /**
  * Caches files locally and stages files locally for async uploads.
@@ -71,7 +73,7 @@ import static com.google.common.base.Preconditions.checkArgument;
  * &lt;/DataStore>
  */
 public abstract class AbstractSharedCachingDataStore extends AbstractDataStore
-    implements MultiDataStoreAware, SharedDataStore {
+    implements MultiDataStoreAware, SharedDataStore, TypedDataStore {
     /**
      * Logger instance.
      */
@@ -215,6 +217,12 @@ public abstract class AbstractSharedCachingDataStore extends AbstractDataStore
 
     @Override
     public DataRecord addRecord(InputStream inputStream) throws DataStoreException {
+        return addRecord(inputStream, new BlobOptions());
+    }
+
+    @Override
+    public DataRecord addRecord(InputStream inputStream, BlobOptions blobOptions)
+        throws DataStoreException {
         Stopwatch watch = Stopwatch.createStarted();
         try {
             TransientFileFactory fileFactory = TransientFileFactory.getInstance();
@@ -237,7 +245,8 @@ public abstract class AbstractSharedCachingDataStore extends AbstractDataStore
 
             // asynchronously stage for upload if the size limit of staging cache permits
             // otherwise add to backend
-            if (!cache.stage(identifier.toString(), tmpFile)) {
+            if (blobOptions.getUpload() == SYNCHRONOUS
+                || !cache.stage(identifier.toString(), tmpFile)) {
                 backend.write(identifier, tmpFile);
                 // offer to download cache
                 cache.getDownloadCache().put(identifier.toString(), tmpFile);

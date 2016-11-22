@@ -178,6 +178,32 @@ public class CachingDataStoreTest extends AbstractDataStoreCacheTest {
     }
 
     /**
+     * Add, get, delete with synchronous option.
+     * @throws Exception
+     */
+    @Test
+    public void syncAddGetDelete() throws Exception {
+        File f = copyToFile(randomStream(0, 4 * 1024), folder.newFile());
+        String id = getIdForInputStream(f);
+        FileInputStream fin = new FileInputStream(f);
+        closer.register(fin);
+
+        DataRecord rec = dataStore.addRecord(fin);
+        assertEquals(id, rec.getIdentifier().toString());
+        assertFile(rec.getStream(), f, folder);
+
+        rec = dataStore.getRecordIfStored(new DataIdentifier(id));
+        assertEquals(id, rec.getIdentifier().toString());
+        assertFile(rec.getStream(), f, folder);
+
+        assertEquals(1, Iterators.size(dataStore.getAllIdentifiers()));
+
+        dataStore.deleteRecord(new DataIdentifier(id));
+        rec = dataStore.getRecordIfStored(new DataIdentifier(id));
+        assertNull(rec);
+    }
+
+    /**
      * {@link CompositeDataStoreCache#getIfPresent(String)} when no cache.
      */
     @Test
