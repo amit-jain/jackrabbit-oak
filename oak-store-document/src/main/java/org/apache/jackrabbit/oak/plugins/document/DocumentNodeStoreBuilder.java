@@ -151,6 +151,7 @@ public class DocumentNodeStoreBuilder<T extends DocumentNodeStoreBuilder<T>> {
     private GCMonitor gcMonitor = new LoggingGCMonitor(
             LoggerFactory.getLogger(VersionGarbageCollector.class));
     private Predicate<Path> nodeCachePredicate = Predicates.alwaysTrue();
+    private boolean clusterInvisible;
 
     /**
      * @return a new {@link DocumentNodeStoreBuilder}.
@@ -336,6 +337,16 @@ public class DocumentNodeStoreBuilder<T extends DocumentNodeStoreBuilder<T>> {
         return thisBuilder();
     }
 
+    /**
+     * Set the cluster as invisible. By default it is visible.
+     *
+     * @return this
+     */
+    public T setClusterInvisible(boolean invisible) {
+        this.clusterInvisible = invisible;
+        return thisBuilder();
+    }
+    
     public T setCacheSegmentCount(int cacheSegmentCount) {
         this.cacheSegmentCount = cacheSegmentCount;
         return thisBuilder();
@@ -348,6 +359,10 @@ public class DocumentNodeStoreBuilder<T extends DocumentNodeStoreBuilder<T>> {
 
     public int getClusterId() {
         return clusterId;
+    }
+
+    public boolean isClusterInvisible() {
+        return clusterInvisible;
     }
 
     /**
