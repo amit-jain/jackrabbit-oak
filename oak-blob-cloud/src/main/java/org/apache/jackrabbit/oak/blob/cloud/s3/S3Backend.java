@@ -847,7 +847,7 @@ public class S3Backend extends AbstractSharedBackend {
             else {
                 // multi-part
                 InitiateMultipartUploadRequest req = new InitiateMultipartUploadRequest(bucket, blobId);
-                InitiateMultipartUploadResult res = s3service.initiateMultipartUpload(req);
+                InitiateMultipartUploadResult res = s3service.initiateMultipartUpload(s3ReqDecorator.decorate(req));
                 uploadId = res.getUploadId();
 
                 long numParts;
@@ -937,6 +937,7 @@ public class S3Backend extends AbstractSharedBackend {
             // or it was completed before with the same token.
         }
         catch (DataStoreException e) {
+            LOG.error("Error finalizing direct upload ", e);
             // record doesn't exist - so this means we are safe to do the complete request
             if (uploadToken.getUploadId().isPresent()) {
                 // An existing upload ID means this is a multi-part upload
@@ -1005,7 +1006,7 @@ public class S3Backend extends AbstractSharedBackend {
             GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(bucket, key)
                     .withMethod(method)
                     .withExpiration(expiration);
-
+            request = s3ReqDecorator.decorate(request);
             for (Map.Entry<String, String> e : reqParams.entrySet()) {
                 request.addRequestParameter(e.getKey(), e.getValue());
             }

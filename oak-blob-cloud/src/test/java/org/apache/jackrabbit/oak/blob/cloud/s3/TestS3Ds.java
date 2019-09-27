@@ -20,8 +20,19 @@ import static org.apache.jackrabbit.oak.blob.cloud.s3.S3DataStoreUtils.getFixtur
 import static org.apache.jackrabbit.oak.blob.cloud.s3.S3DataStoreUtils.getS3Config;
 import static org.apache.jackrabbit.oak.blob.cloud.s3.S3DataStoreUtils.getS3DataStore;
 import static org.apache.jackrabbit.oak.blob.cloud.s3.S3DataStoreUtils.isS3Configured;
+import static org.apache.jackrabbit.oak.plugins.blob.datastore.DataStoreUtils.randomStream;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.List;
 import java.util.Properties;
@@ -30,12 +41,24 @@ import javax.jcr.RepositoryException;
 
 import com.google.common.collect.Lists;
 import org.apache.commons.lang3.time.DateUtils;
+import org.apache.jackrabbit.core.data.DataRecord;
 import org.apache.jackrabbit.core.data.DataStore;
+import org.apache.jackrabbit.core.data.DataStoreException;
+import org.apache.jackrabbit.oak.commons.IOUtils;
 import org.apache.jackrabbit.oak.plugins.blob.datastore.AbstractDataStoreTest;
+import org.apache.jackrabbit.oak.plugins.blob.datastore.directaccess.ConfigurableDataRecordAccessProvider;
+import org.apache.jackrabbit.oak.plugins.blob.datastore.directaccess.DataRecordAccessProvider;
+import org.apache.jackrabbit.oak.plugins.blob.datastore.directaccess.DataRecordDownloadOptions;
+import org.apache.jackrabbit.oak.plugins.blob.datastore.directaccess.DataRecordUpload;
+import org.apache.jackrabbit.oak.plugins.blob.datastore.directaccess.DataRecordUploadException;
+import org.apache.jackrabbit.oak.spi.blob.BlobOptions;
+import org.jetbrains.annotations.Nullable;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
@@ -52,6 +75,10 @@ import org.slf4j.LoggerFactory;
 public class TestS3Ds extends AbstractDataStoreTest {
 
     protected static final Logger LOG = LoggerFactory.getLogger(TestS3Ds.class);
+    protected static long ONE_KB = 1024;
+    protected static long ONE_MB = ONE_KB * ONE_KB;
+    protected static long ONE_HUNDRED_MB = ONE_MB * 100;
+    protected static long ONE_GB = ONE_HUNDRED_MB * 10;
 
     private static Date overallStartTime = getBackdatedDate();
     private Date thisTestStartTime = null;
@@ -94,6 +121,59 @@ public class TestS3Ds extends AbstractDataStoreTest {
         super.setUp();
     }
 
+    @Test
+    public void testInitiateDirectUploadUnlimitedURIs() throws DataRecordUploadException,
+            RepositoryException {
+        ConfigurableDataRecordAccessProvider ds
+                  = (ConfigurableDataRecordAccessProvider) createDataStore();
+        long uploadSize = ONE_GB * 50;
+        int expectedNumURIs = 5000;
+        DataRecordUpload upload = ds.initiateDataRecordUpload(uploadSize, -1);
+        Assert.assertEquals(expectedNumURIs, upload.getUploadURIs().size());
+
+        uploadSize = ONE_GB * 100;
+        expectedNumURIs = 10000;
+        upload = ds.initiateDataRecordUpload(uploadSize, -1);
+        Assert.assertEquals(expectedNumURIs, upload.getUploadURIs().size());
+
+        uploadSize = ONE_GB * 200;
+        upload = ds.initiateDataRecordUpload(uploadSize, -1);
+        Assert.assertEquals(expectedNumURIs, upload.getUploadURIs().size());
+    }
+
+    @Test
+    public void testGetDownloadURI() throws IOException, RepositoryException {
+        DataRecord record = null;
+        DataRecordAccessProvider ds = (DataRecordAccessProvider) createDataStore();
+        InputStream testStream = randomStream(0, 256);
+        record = doSynchronousAddRecord(ds, testStream);
+        URI uri = ((DataRecordAccessProvider) ds).getDownloadURI(record.getIdentifier(), DataRecordDownloadOptions.DEFAULT);
+        Assert.assertNotNull("uri is null", uri);
+    }
+
+    @Test
+    public void testCompleteDirectUploadUpdate() throws DataRecordUploadException, RepositoryException {
+        ConfigurableDataRecordAccessProvider ds = (ConfigurableDataRecordAccessProvider) createDataStore();
+        DataRecordUpload uploadContext = ds.initiateDataRecordUpload(ONE_MB, 1);
+        InputStream testStream = randomStream(0, ONE_MB);
+
+        //Pull the blob id out and modify it
+        String uploadToken = uploadContext.getUploadToken();
+
+        try {
+            int code = httpPut(uploadContext.getUploadURIs().iterator().next(), ONE_MB, testStream);
+            Assert.assertEquals(code, 200);
+
+            DataRecord uploadedRecord = ds.completeDataRecordUpload(uploadToken);
+            assertNotNull(uploadedRecord);
+        }
+        catch (IOException e) {
+            fail("Unable to upload binary");
+        } catch (IllegalArgumentException iae) {
+            fail("Invalid upload token");
+        }
+    }
+
     @Override
     @After
     public void tearDown() {
@@ -127,6 +207,30 @@ public class TestS3Ds extends AbstractDataStoreTest {
         }
         sleep(1000);
         return s3ds;
+    }
+
+    protected DataRecord doSynchronousAddRecord(DataRecordAccessProvider ds, InputStream in) throws DataStoreException {
+        return ((S3DataStore)ds).addRecord(in, new BlobOptions().setUpload(BlobOptions.UploadType.SYNCHRONOUS));
+    }
+
+    public static int httpPut(@Nullable URI uri, long contentLength, InputStream in) throws IOException  {
+        // this weird combination of @Nullable and assertNotNull() is for IDEs not warning in test methods
+        assertNotNull(uri);
+
+        HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
+        connection.setDoOutput(true);
+        connection.setRequestMethod("PUT");
+        connection.setRequestProperty("Content-Length", String.valueOf(contentLength));
+        connection.setRequestProperty("Date", DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssX")
+            .withZone(ZoneOffset.UTC)
+            .format(Instant.now()));
+
+        OutputStream putStream = connection.getOutputStream();
+        IOUtils.copy(in, putStream);
+        putStream.close();
+
+        String message = connection.getResponseMessage();
+        return connection.getResponseCode();
     }
 
     /**----------Not supported-----------**/

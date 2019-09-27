@@ -71,12 +71,21 @@ public class TestS3DSWithSSES3 extends TestS3Ds {
             props.setProperty(S3Constants.S3_RENAME_KEYS, "true");
             ds = createDataStore();
 
+            Assert.assertNotEquals(null, ds);
+            rec = ds.getRecord(rec.getIdentifier());
+            Assert.assertNotEquals(null, rec);
             rec = ds.getRecord(rec.getIdentifier());
             Assert.assertEquals(data.length, rec.getLength());
             assertRecord(data, rec);
 
             randomGen.nextBytes(data);
-            ds.addRecord(new ByteArrayInputStream(data));
+            rec = ds.addRecord(new ByteArrayInputStream(data));
+            Assert.assertNotNull(rec);
+            assertRecord(data, rec);
+            rec = ds.getRecord(rec.getIdentifier());
+            Assert.assertNotNull(rec);
+            assertRecord(data, rec);
+
             ds.close();
         } catch (Exception e) {
             LOG.error("error:", e);
